@@ -21,8 +21,6 @@ namespace SecurityRolesSync
 
         private void MyPluginControl_Load(object sender, EventArgs e)
         {
-            ShowInfoNotification("This is a notification that can lead to XrmToolBox repository", new Uri("https://github.com/MscrmTools/XrmToolBox"));
-
             // Loads or creates the settings for the plugin
             if (!SettingsManager.Instance.TryLoad(GetType(), out mySettings))
             {
@@ -82,13 +80,16 @@ namespace SecurityRolesSync
                             dropDownListCollection.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
                             dropDownListCollection1.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
                         }
+                        Source.Sorted = true;
                         Source.DataSource = dropDownListCollection;
                         Source.DisplayMember = "Text";
                         Source.ValueMember = "Value";
 
-                        comboBox1.DataSource = dropDownListCollection1;
-                        comboBox1.DisplayMember = "Text";
-                        comboBox1.ValueMember = "Value";
+                        Target.Sorted = true;
+                        Target.DataSource = dropDownListCollection1;
+                        Target.DisplayMember = "Text";
+                        Target.ValueMember = "Value";
+                        
 
                     }
                 }
@@ -123,7 +124,7 @@ namespace SecurityRolesSync
         private void syncRoles_Click(object sender, EventArgs e)
         {
             Guid id = new Guid(Source.SelectedValue.ToString());
-            Guid TargerUserId =new Guid(comboBox1.SelectedValue.ToString());
+            Guid TargerUserId =new Guid(Target.SelectedValue.ToString());
 
             WorkAsync(new WorkAsyncInfo
             {

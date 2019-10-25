@@ -159,7 +159,8 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\SecRolesSync.png" />
+    <Content Include="Resources\SecRoles32.png" />
+    <Content Include="Resources\SecRoles80.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

@@ -33,7 +33,7 @@
             this.tssSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.syncRoles = new System.Windows.Forms.Button();
             this.Source = new System.Windows.Forms.ComboBox();
-            this.comboBox1 = new System.Windows.Forms.ComboBox();
+            this.Target = new System.Windows.Forms.ComboBox();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.toolStripMenu.SuspendLayout();
@@ -83,22 +83,22 @@
             this.Source.Size = new System.Drawing.Size(278, 28);
             this.Source.TabIndex = 9;
             // 
-            // comboBox1
+            // Target
             // 
-            this.comboBox1.FormattingEnabled = true;
-            this.comboBox1.Location = new System.Drawing.Point(558, 104);
-            this.comboBox1.Name = "comboBox1";
-            this.comboBox1.Size = new System.Drawing.Size(289, 28);
-            this.comboBox1.TabIndex = 10;
+            this.Target.FormattingEnabled = true;
+            this.Target.Location = new System.Drawing.Point(558, 104);
+            this.Target.Name = "Target";
+            this.Target.Size = new System.Drawing.Size(289, 28);
+            this.Target.TabIndex = 10;
             // 
             // label1
             // 
             this.label1.AutoSize = true;
             this.label1.Location = new System.Drawing.Point(28, 66);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(137, 20);
+            this.label1.Size = new System.Drawing.Size(98, 20);
             this.label1.TabIndex = 11;
-            this.label1.Text = "Source Sec Roles";
+            this.label1.Text = "Source User";
             // 
             // label2
             // 
@@ -115,7 +115,7 @@
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
-            this.Controls.Add(this.comboBox1);
+            this.Controls.Add(this.Target);
             this.Controls.Add(this.Source);
             this.Controls.Add(this.syncRoles);
             this.Controls.Add(this.toolStripMenu);
@@ -136,7 +136,7 @@
         private System.Windows.Forms.ToolStripSeparator tssSeparator1;
         private System.Windows.Forms.Button syncRoles;
         private System.Windows.Forms.ComboBox Source;
-        private System.Windows.Forms.ComboBox comboBox1;
+        private System.Windows.Forms.ComboBox Target;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label2;
     }
