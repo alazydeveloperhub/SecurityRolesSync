@@ -80,12 +80,13 @@ namespace SecurityRolesSync
                             dropDownListCollection.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
                             dropDownListCollection1.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
                         }
-                        Source.Sorted = true;
+                        
+                        
                         Source.DataSource = dropDownListCollection;
                         Source.DisplayMember = "Text";
                         Source.ValueMember = "Value";
 
-                        Target.Sorted = true;
+                        
                         Target.DataSource = dropDownListCollection1;
                         Target.DisplayMember = "Text";
                         Target.ValueMember = "Value";
@@ -123,8 +124,8 @@ namespace SecurityRolesSync
 
         private void syncRoles_Click(object sender, EventArgs e)
         {
-            Guid id = new Guid(Source.SelectedValue.ToString());
-            Guid TargerUserId =new Guid(Target.SelectedValue.ToString());
+            Guid sourceUserId = new Guid(Source.SelectedValue.ToString());
+            Guid targetUserId =new Guid(Target.SelectedValue.ToString());
 
             WorkAsync(new WorkAsyncInfo
             {
@@ -136,11 +137,11 @@ namespace SecurityRolesSync
                     
                     List<Guid> sourceRoleIds;
                     Guid SourceBuId;
-                    GetUserRoles(id, out sourceRoleIds, out SourceBuId);
+                    GetUserRoles(sourceUserId, out sourceRoleIds, out SourceBuId);
 
                     List<Guid> targetRoleIds;
                     Guid targetBuId;
-                    GetUserRoles(TargerUserId, out targetRoleIds, out targetBuId);
+                    GetUserRoles(targetUserId, out targetRoleIds, out targetBuId);
 
                     if (SourceBuId == targetBuId)
                     {
@@ -152,7 +153,7 @@ namespace SecurityRolesSync
                         //clear all the sec roles of target user
                         Service.Disassociate(
                                             "systemuser",
-                                            TargerUserId,
+                                            targetUserId,
                                             new Relationship("systemuserroles_association"),
                                             targetRoleCollection);
                     }
@@ -161,8 +162,8 @@ namespace SecurityRolesSync
 
                         SetBusinessSystemUserRequest request = new SetBusinessSystemUserRequest();
                         request.BusinessId = SourceBuId;
-                        request.UserId = TargerUserId;
-                        request.ReassignPrincipal = new EntityReference("systemuser", TargerUserId);
+                        request.UserId = targetUserId;
+                        request.ReassignPrincipal = new EntityReference("systemuser", targetUserId);
                         SetBusinessSystemUserResponse response =
                         (SetBusinessSystemUserResponse)Service.Execute(request);
                     }
@@ -175,9 +176,25 @@ namespace SecurityRolesSync
                         roleCollection.Add(new EntityReference("role", r));
                     }
 
-                    Service.Associate("systemuser", TargerUserId,
+                    Service.Associate("systemuser", targetUserId,
                                        new Relationship("systemuserroles_association"),
                                         roleCollection);
+
+                    //Remove Old Teams from Targer User
+                    List<Guid> targetUserTeamIds = GetUserTeams(targetUserId, Service);
+                    Guid[] targetUser = new Guid[] { targetUserId };
+                    foreach (Guid team in targetUserTeamIds)
+                    {
+                        RemoveMembersFromTeam(team, targetUser, Service);
+                    }
+
+                    //Adding teams from Source users to Target user
+                    List<Guid> teamIds = GetUserTeams(sourceUserId, Service);
+                    
+                    foreach (Guid team in teamIds)
+                    {
+                        AddMembersToTeam(team, targetUser, Service);
+                    }
                 },
            
                 PostWorkCallBack = ar =>
@@ -191,6 +208,41 @@ namespace SecurityRolesSync
                 MessageHeight = 150
             });
             
+        }
+
+        public List<Guid> GetUserTeams(Guid UserID, IOrganizationService service)
+        {
+            QueryExpression query = new QueryExpression("team");
+            query.ColumnSet = new ColumnSet("teamid","isdefault");
+            LinkEntity link = query.AddLink("teammembership", "teamid", "teamid");
+            link.LinkCriteria.AddCondition(new ConditionExpression("systemuserid", ConditionOperator.Equal, UserID));
+
+            try
+            {
+                EntityCollection teams= service.RetrieveMultiple(query);
+                 List<Guid> teamIds = new List<Guid>(); ;
+                foreach(Entity t in teams.Entities)
+                {
+                    if (t["isdefault"].ToString() == "False")
+                    {
+                        teamIds.Add(t.Id);
+                    }
+                }
+                return teamIds;
+            }
+            catch (Exception ex)
+            {
+                // Do your Error Handling here
+                throw ex;
+            }
+        }
+
+        public static void AddMembersToTeam(Guid teamId, Guid[] membersId, IOrganizationService service)
+        {
+            AddMembersTeamRequest addRequest = new AddMembersTeamRequest();
+            addRequest.TeamId = teamId;
+            addRequest.MemberIds = membersId;
+            service.Execute(addRequest);
         }
 
         private void GetUserRoles(Guid userid, out List<Guid> roleIds, out Guid buId)
@@ -216,6 +268,13 @@ namespace SecurityRolesSync
             }
         }
 
-       
+        public static void RemoveMembersFromTeam(Guid teamId, Guid[] membersId, IOrganizationService service)
+        {
+            RemoveMembersTeamRequest removeRequest = new RemoveMembersTeamRequest();
+            removeRequest.TeamId = teamId;
+            removeRequest.MemberIds = membersId;
+            service.Execute(removeRequest);
+        }
+
     }
 }

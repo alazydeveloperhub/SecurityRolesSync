@@ -6,9 +6,9 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("SecurityRolesSync")]
-[assembly: AssemblyDescription("This plugin will copy security roles from one user and apply them to another.")]
+[assembly: AssemblyDescription("This plugin will copy security roles and Teams from one user and apply them to another.")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("AlazyDeveloper")]
+[assembly: AssemblyCompany("ALazyDeveloper")]
 [assembly: AssemblyProduct("SecurityRolesSync")]
 [assembly: AssemblyCopyright("Copyright ©  2019")]
 [assembly: AssemblyTrademark("")]
@@ -32,5 +32,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.2019.0.3")]
-[assembly: AssemblyFileVersion("1.2019.0.3")]
+[assembly: AssemblyVersion("1.2019.0.5")]
+[assembly: AssemblyFileVersion("1.2019.0.5")]
