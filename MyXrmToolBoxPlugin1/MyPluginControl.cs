@@ -80,18 +80,14 @@ namespace SecurityRolesSync
                             dropDownListCollection.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
                             dropDownListCollection1.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
                         }
-                        
-                        
                         Source.DataSource = dropDownListCollection;
                         Source.DisplayMember = "Text";
                         Source.ValueMember = "Value";
-
                         
                         Target.DataSource = dropDownListCollection1;
                         Target.DisplayMember = "Text";
                         Target.ValueMember = "Value";
                         
-
                     }
                 }
             });
@@ -120,12 +116,14 @@ namespace SecurityRolesSync
                 mySettings.LastUsedOrganizationWebappUrl = detail.WebApplicationUrl;
                 LogInfo("Connection has changed to: {0}", detail.WebApplicationUrl);
             }
+            ExecuteMethod(GetUsers);
         }
 
         private void syncRoles_Click(object sender, EventArgs e)
         {
             Guid sourceUserId = new Guid(Source.SelectedValue.ToString());
-            Guid targetUserId =new Guid(Target.SelectedValue.ToString());
+            Guid targetUserId = new Guid(Target.SelectedValue.ToString());
+            Exception er = null;
 
             WorkAsync(new WorkAsyncInfo
             {
@@ -133,95 +131,108 @@ namespace SecurityRolesSync
                 Work = (w, ar) =>
                 {
                     // This code is executed in another thread
-                   
-                    
-                    List<Guid> sourceRoleIds;
-                    Guid SourceBuId;
-                    GetUserRoles(sourceUserId, out sourceRoleIds, out SourceBuId);
 
-                    List<Guid> targetRoleIds;
-                    Guid targetBuId;
-                    GetUserRoles(targetUserId, out targetRoleIds, out targetBuId);
-
-                    if (SourceBuId == targetBuId)
+                    try
                     {
-                        EntityReferenceCollection targetRoleCollection = new EntityReferenceCollection();
-                        foreach (var tr in targetRoleIds)
+                        List<Guid> sourceRoleIds;
+                        Guid SourceBuId;
+                        GetUserRoles(sourceUserId, out sourceRoleIds, out SourceBuId);
+
+                        List<Guid> targetRoleIds;
+                        Guid targetBuId;
+                        GetUserRoles(targetUserId, out targetRoleIds, out targetBuId);
+
+                        if (SourceBuId == targetBuId)
                         {
-                            targetRoleCollection.Add(new EntityReference("role", tr));
-                        }
-                        //clear all the sec roles of target user
-                        Service.Disassociate(
+                            EntityReferenceCollection targetRoleCollection = new EntityReferenceCollection();
+                            foreach (var tr in targetRoleIds)
+                            {
+                                targetRoleCollection.Add(new EntityReference("role", tr));
+                            }
+                            //clear all the sec roles of target user
+
+                            Service.Disassociate(
                                             "systemuser",
                                             targetUserId,
                                             new Relationship("systemuserroles_association"),
                                             targetRoleCollection);
+                        }
+                        else
+                        {
+
+                            SetBusinessSystemUserRequest request = new SetBusinessSystemUserRequest();
+                            request.BusinessId = SourceBuId;
+                            request.UserId = targetUserId;
+                            request.ReassignPrincipal = new EntityReference("systemuser", targetUserId);
+                            SetBusinessSystemUserResponse response =
+                            (SetBusinessSystemUserResponse)Service.Execute(request);
+                        }
+
+                        //Adding Bu and Roles to the target user
+
+                        EntityReferenceCollection roleCollection = new EntityReferenceCollection();
+                        foreach (var r in sourceRoleIds)
+                        {
+                            roleCollection.Add(new EntityReference("role", r));
+                        }
+
+                        Service.Associate("systemuser", targetUserId,
+                                           new Relationship("systemuserroles_association"),
+                                            roleCollection);
+
+                        //Remove Old Teams from Targer User
+                        List<Guid> targetUserTeamIds = GetUserTeams(targetUserId, Service);
+                        Guid[] targetUser = new Guid[] { targetUserId };
+                        foreach (Guid team in targetUserTeamIds)
+                        {
+                            RemoveMembersFromTeam(team, targetUser, Service);
+                        }
+
+                        //Adding teams from Source users to Target user
+                        List<Guid> teamIds = GetUserTeams(sourceUserId, Service);
+
+                        foreach (Guid team in teamIds)
+                        {
+                            AddMembersToTeam(team, targetUser, Service);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        er = ex;
+                    }
+                },
+
+                PostWorkCallBack = ar =>
+                {
+                   if (er!= null)
+                    {
+                        MessageBox.Show(er.Message);
                     }
                     else
                     {
-
-                        SetBusinessSystemUserRequest request = new SetBusinessSystemUserRequest();
-                        request.BusinessId = SourceBuId;
-                        request.UserId = targetUserId;
-                        request.ReassignPrincipal = new EntityReference("systemuser", targetUserId);
-                        SetBusinessSystemUserResponse response =
-                        (SetBusinessSystemUserResponse)Service.Execute(request);
-                    }
-
-                    //Adding Bu and Roles to the target user
-
-                    EntityReferenceCollection roleCollection = new EntityReferenceCollection();
-                    foreach (var r in sourceRoleIds)
-                    {
-                        roleCollection.Add(new EntityReference("role", r));
-                    }
-
-                    Service.Associate("systemuser", targetUserId,
-                                       new Relationship("systemuserroles_association"),
-                                        roleCollection);
-
-                    //Remove Old Teams from Targer User
-                    List<Guid> targetUserTeamIds = GetUserTeams(targetUserId, Service);
-                    Guid[] targetUser = new Guid[] { targetUserId };
-                    foreach (Guid team in targetUserTeamIds)
-                    {
-                        RemoveMembersFromTeam(team, targetUser, Service);
-                    }
-
-                    //Adding teams from Source users to Target user
-                    List<Guid> teamIds = GetUserTeams(sourceUserId, Service);
-                    
-                    foreach (Guid team in teamIds)
-                    {
-                        AddMembersToTeam(team, targetUser, Service);
-                    }
-                },
-           
-                PostWorkCallBack = ar =>
-                {
-                    // This code is executed in the main thread
-                    MessageBox.Show($"Security Roles synced.");
+                        MessageBox.Show($"Security Roles synced.");
+                    }                   
                 },
                 AsyncArgument = null,
                 // Progress information panel size
                 MessageWidth = 340,
                 MessageHeight = 150
             });
-            
+
         }
 
         public List<Guid> GetUserTeams(Guid UserID, IOrganizationService service)
         {
             QueryExpression query = new QueryExpression("team");
-            query.ColumnSet = new ColumnSet("teamid","isdefault");
+            query.ColumnSet = new ColumnSet("teamid", "isdefault");
             LinkEntity link = query.AddLink("teammembership", "teamid", "teamid");
             link.LinkCriteria.AddCondition(new ConditionExpression("systemuserid", ConditionOperator.Equal, UserID));
 
             try
             {
-                EntityCollection teams= service.RetrieveMultiple(query);
-                 List<Guid> teamIds = new List<Guid>(); ;
-                foreach(Entity t in teams.Entities)
+                EntityCollection teams = service.RetrieveMultiple(query);
+                List<Guid> teamIds = new List<Guid>(); ;
+                foreach (Entity t in teams.Entities)
                 {
                     if (t["isdefault"].ToString() == "False")
                     {
