@@ -464,9 +464,5 @@ namespace SecurityRolesSync
             }
         }
 
-        private void buttonAddNewUser_Click(object sender, EventArgs e)
-        {
-            string firstName = Prompt.ShowDialog("First Name", "The user's first name");
-        }
     }
 }
