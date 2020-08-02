@@ -7,12 +7,17 @@ using McTools.Xrm.Connection;
 using System.Web.UI.WebControls;
 using Microsoft.Crm.Sdk.Messages;
 using System.Collections.Generic;
+using Newtonsoft.Json.Bson;
+using System.ComponentModel;
 
 namespace SecurityRolesSync
 {
     public partial class MyPluginControl : PluginControlBase
     {
+        // Cache of users from CDS
+       
         private Settings mySettings;
+        private EntityCollection UserListCache { get; set; }
 
         public MyPluginControl()
         {
@@ -32,7 +37,9 @@ namespace SecurityRolesSync
             {
                 LogInfo("Settings found and loaded");
             }
-            ExecuteMethod(GetUsers);
+
+            ExecuteMethod(PopulateDropdownsFormLoad);
+       
         }
 
         private void tsbClose_Click(object sender, EventArgs e)
@@ -40,54 +47,195 @@ namespace SecurityRolesSync
             CloseTool();
         }
 
+        private void GetUsers(String searchTxt, SearchType searchType)
+        {
+            var newUsersList = new EntityCollection();
 
-        private void GetUsers()
+            // Use cached list of users first 
+            // If nothing is in the cache, get fresh list of users from CDS.
+
+            var UsersList = UserListCache == null ? GetUserEntitiesCDS() : UserListCache;
+
+            // Populate dropdowns with all users if search is blank. 
+            // No need to filter
+
+            if(searchTxt == "")
+            {
+                newUsersList = UsersList;
+            }
+
+            // Else, filter the user cache
+            else
+            {
+                for (int i = 0; i < UsersList.Entities.Count; i++)
+                {
+                    var entity = UsersList.Entities[i];
+
+                    var fullName = (entity["fullname"].ToString() + entity["systemuserid"].ToString()).ToLowerInvariant();
+
+                    if (fullName.Contains(searchTxt.ToLowerInvariant()))
+                    {
+                        newUsersList.Entities.Add(entity);
+                    }
+                }
+            }    
+           
+            // Populate the dropdowns UI
+
+            switch (searchType)
+            {
+                case SearchType.Source:
+                    PopulateSourceUsersDropdown(newUsersList);
+                    break;
+                case SearchType.Target:
+                    PopulateTargetUsersDropdown(newUsersList);
+                    break;
+                default:
+                    break;
+            }
+            
+        }
+
+        /// <summary>
+        /// Retrieve all the users from CDS
+        /// </summary>
+        /// <returns></returns>
+        private EntityCollection GetUserEntitiesCDS()
+        {
+            ConditionExpression condition1 = new ConditionExpression();
+            condition1.AttributeName = "isdisabled";
+            condition1.Operator = ConditionOperator.Equal;
+            condition1.Values.Add("false");
+
+            FilterExpression filter1 = new FilterExpression();
+            filter1.Conditions.Add(condition1);
+
+            QueryExpression query = new QueryExpression("systemuser");
+            query.ColumnSet.AddColumns("systemuserid", "fullname");
+            query.Criteria.AddFilter(filter1);
+
+            return Service.RetrieveMultiple(query);
+        }
+
+        /// <summary>
+        /// Get initial dropdown data and populate the dropdown UI controls.
+        /// Populate the user list cache
+        /// </summary>
+        private void PopulateDropdownsFormLoad()
+        {
+          
+            WorkAsync(new WorkAsyncInfo
+            {
+                Work = (worker, args) =>
+                {
+                    // get data from CDS
+
+                    args.Result = GetUserEntitiesCDS();
+                   
+                },
+                PostWorkCallBack = (args) => 
+                {
+                    NotifyAsyncError(args);
+
+                    var result = args.Result as EntityCollection;
+
+                    // update cache
+
+                    UserListCache = result; 
+
+                    // populate UI
+
+                    PopulateSourceUsersDropdown(result);
+                    PopulateTargetUsersDropdown(result);
+                }
+            });
+
+        }
+
+        private void NotifyAsyncError(RunWorkerCompletedEventArgs args)
+        {
+            if (args.Error != null)
+            {
+                MessageBox.Show(args.Error.ToString(), "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void PopulateSourceUsersDropdown(EntityCollection UsersList)
         {
             WorkAsync(new WorkAsyncInfo
             {
-                // Message = "Getting accounts",
+
                 Work = (worker, args) =>
                 {
-                    ConditionExpression condition1 = new ConditionExpression();
-                    condition1.AttributeName = "isdisabled";
-                    condition1.Operator = ConditionOperator.Equal;
-                    condition1.Values.Add("false");
-
-                    FilterExpression filter1 = new FilterExpression();
-                    filter1.Conditions.Add(condition1);
-
-                    QueryExpression query = new QueryExpression("systemuser");
-                    query.ColumnSet.AddColumns("systemuserid", "fullname");
-                    query.Criteria.AddFilter(filter1);
-
-                    args.Result = Service.RetrieveMultiple(query);
+                    var userEntities = UsersList;
+                    args.Result = userEntities;
 
                 },
                 PostWorkCallBack = (args) =>
                 {
-                    if (args.Error != null)
-                    {
-                        MessageBox.Show(args.Error.ToString(), "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
+                    NotifyAsyncError(args);
+
                     var result = args.Result as EntityCollection;
+
                     if (result != null)
                     {
                         var dropDownListCollection = new ListItemCollection();
+                       
+                        for (int i = 0; i < result.Entities.Count; i++)
+                        {
+                            dropDownListCollection.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
+                          
+                        }
+
+                        Source.DataSource = dropDownListCollection;
+                        Source.DisplayMember = "Text";
+                        Source.ValueMember = "Value";
+
+                    }
+                }
+            });
+        }
+
+
+        private void PopulateTargetUsersDropdown(EntityCollection UsersList)
+        {
+            WorkAsync(new WorkAsyncInfo
+            {
+          
+                Work = (worker, args) =>
+                {
+
+                    if (UsersList == null)
+                    {
+                        UsersList = GetUserEntitiesCDS();
+                    }
+
+                    var userEntities = UsersList;
+
+                    args.Result = userEntities;
+
+                },
+                PostWorkCallBack = (args) =>
+                {
+                    NotifyAsyncError(args);
+
+                    var result = args.Result as EntityCollection;
+
+                    if (result != null)
+                    {
+                      
                         var dropDownListCollection1 = new ListItemCollection();
 
                         for (int i = 0; i < result.Entities.Count; i++)
                         {
-                            dropDownListCollection.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
+                           
                             dropDownListCollection1.Add(new ListItem(result.Entities[i]["fullname"].ToString(), result.Entities[i]["systemuserid"].ToString()));
                         }
-                        Source.DataSource = dropDownListCollection;
-                        Source.DisplayMember = "Text";
-                        Source.ValueMember = "Value";
-                        
+
                         Target.DataSource = dropDownListCollection1;
                         Target.DisplayMember = "Text";
                         Target.ValueMember = "Value";
-                        
+
                     }
                 }
             });
@@ -116,7 +264,9 @@ namespace SecurityRolesSync
                 mySettings.LastUsedOrganizationWebappUrl = detail.WebApplicationUrl;
                 LogInfo("Connection has changed to: {0}", detail.WebApplicationUrl);
             }
-            ExecuteMethod(GetUsers);
+
+            UserListCache = null;
+            ExecuteMethod(PopulateDropdownsFormLoad);
         }
 
         private void syncRoles_Click(object sender, EventArgs e)
@@ -287,5 +437,36 @@ namespace SecurityRolesSync
             service.Execute(removeRequest);
         }
 
+        private void txtSearchSourceUser_TextChanged(object sender, EventArgs e)
+        {
+            GetUsers(txtSearchSourceUser.Text, SearchType.Source);
+        }
+
+        private void txtSearchSourceUser_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (txtSearchSourceUser.Text == "Search...")
+            {
+                txtSearchSourceUser.Text = "";
+            }
+
+        }
+
+        private void txtServerTargetUser_TextChanged(object sender, EventArgs e)
+        {
+            GetUsers(txtSearchTargetUser.Text, SearchType.Target);
+        }
+
+        private void txtServerTargetUser_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (txtSearchTargetUser.Text == "Search...")
+            {
+                txtSearchTargetUser.Text = "";
+            }
+        }
+
+        private void buttonAddNewUser_Click(object sender, EventArgs e)
+        {
+            string firstName = Prompt.ShowDialog("First Name", "The user's first name");
+        }
     }
 }
